@@ -302,6 +302,19 @@
                         <label for="clientName">Client Name <span class="required">*</span></label>
                         <input type="text" id="clientName" placeholder="Enter client name" required>
                     </div>
+                    <div class="form-group">
+                        <label>Client Type <span class="required">*</span></label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="singular" name="clientType" value="singular" checked>
+                                <label for="singular">Singular (e.g., "Client objects...")</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="plural" name="clientType" value="plural">
+                                <label for="plural">Plural (e.g., "Clients object...")</label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Discovery Type -->
@@ -657,6 +670,8 @@
             // Get form values
             const clientName = document.getElementById('clientName').value.trim();
             const discoveryType = document.querySelector('input[name="discoveryType"]:checked');
+            const clientType = document.querySelector('input[name="clientType"]:checked').value;
+            const isPlural = clientType === 'plural';
             
             // Validation
             if (!clientName) {
@@ -700,6 +715,36 @@
             // Generate output
             let output = '';
             
+            // Function to adjust verb agreement
+            function adjustVerbs(text, clientName, isPlural) {
+                if (!isPlural) return text;
+                
+                // Convert singular verbs to plural forms
+                // Create a regex pattern that matches the client name followed by the verb
+                const escapedName = clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                
+                text = text.replace(new RegExp(`(${escapedName}) incorporates`, 'g'), "$1 incorporate");
+                text = text.replace(new RegExp(`(${escapedName}) objects`, 'g'), "$1 object");
+                text = text.replace(new RegExp(`(${escapedName}) further objects`, 'g'), "$1 further object");
+                text = text.replace(new RegExp(`(${escapedName}) states`, 'g'), "$1 state");
+                text = text.replace(new RegExp(`(${escapedName}) affirms`, 'g'), "$1 affirm");
+                text = text.replace(new RegExp(`(${escapedName}) will conduct`, 'g'), "$1 will conduct");
+                text = text.replace(new RegExp(`(${escapedName}) reserves`, 'g'), "$1 reserve");
+                
+                // Fix possessives: if client name ends in 's', use just apostrophe; otherwise use 's
+                // First, replace any existing 's with a placeholder
+                text = text.replace(new RegExp(`(${escapedName})'s`, 'g'), "$1__POSSESSIVE__");
+                
+                // Now replace the placeholder with the correct possessive form
+                if (clientName.endsWith('s') || clientName.endsWith('S')) {
+                    text = text.replace(/__POSSESSIVE__/g, "'");
+                } else {
+                    text = text.replace(/__POSSESSIVE__/g, "'s");
+                }
+                
+                return text;
+            }
+            
             // Add objections
             selectedObjections.forEach((num, index) => {
                 const objection = objections.find(o => o.Number === num);
@@ -713,8 +758,11 @@
                 
                 // Replace "objects" with "further objects" for all objections after the first (excluding #1)
                 if (index > 0 && num !== 1) {
-                    text = text.replace(/(\[CLIENT\]|[A-Za-z\s]+) objects/, '$1 further objects');
+                    text = text.replace(new RegExp(`(^${clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}) objects`, 'i'), '$1 further objects');
                 }
+                
+                // Adjust for plural
+                text = adjustVerbs(text, clientName, isPlural);
                 
                 output += text + '  ';
             });
@@ -729,6 +777,9 @@
                 
                 // Replace [Request/Interrogatory]
                 text = text.replace(/\[Request\/Interrogatory\]/g, discoveryTypeValue);
+                
+                // Adjust for plural
+                text = adjustVerbs(text, clientName, isPlural);
                 
                 output += text + '  ';
             });
