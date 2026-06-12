@@ -91,6 +91,24 @@
             margin-top: 10px;
         }
         
+        .name-row {
+            display: flex;
+            gap: 30px;
+            align-items: flex-end;
+        }
+        
+        .name-row .name-input {
+            flex: 1;
+        }
+        
+        .name-row .radio-group {
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 0;
+            margin-bottom: 6px;
+            flex: 0 0 110px;
+        }
+        
         .radio-option {
             display: flex;
             align-items: center;
@@ -220,6 +238,35 @@
             transform: none;
         }
         
+        .button-row {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .button-row .generate-btn {
+            flex: 1;
+            margin-top: 0;
+        }
+        
+        .clear-btn {
+            flex: 0 0 auto;
+            padding: 16px 28px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .clear-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+        }
+        
         .output-section {
             margin-top: 40px;
             display: none;
@@ -297,21 +344,36 @@
             <form id="responseForm">
                 <!-- Client Name -->
                 <div class="form-section">
-                    <h2>1. Client Information</h2>
-                    <div class="form-group">
-                        <label for="clientName">Client Name <span class="required">*</span></label>
-                        <input type="text" id="clientName" placeholder="Enter client name" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Client Type <span class="required">*</span></label>
+                    <h2>1. Client &amp; Party Information</h2>
+                    <div class="form-group name-row">
+                        <div class="name-input">
+                            <label for="clientName">Client Name <span class="required">*</span></label>
+                            <input type="text" id="clientName" placeholder="Enter client name" required>
+                        </div>
                         <div class="radio-group">
                             <div class="radio-option">
                                 <input type="radio" id="singular" name="clientType" value="singular" checked>
-                                <label for="singular">Singular (e.g., "Client objects...")</label>
+                                <label for="singular">Singular</label>
                             </div>
                             <div class="radio-option">
                                 <input type="radio" id="plural" name="clientType" value="plural">
-                                <label for="plural">Plural (e.g., "Clients object...")</label>
+                                <label for="plural">Plural</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group name-row">
+                        <div class="name-input">
+                            <label for="partyName">Party Name</label>
+                            <input type="text" id="partyName" placeholder="Enter party name (optional)">
+                        </div>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="partySingular" name="partyType" value="singular" checked>
+                                <label for="partySingular">Singular</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="partyPlural" name="partyType" value="plural">
+                                <label for="partyPlural">Plural</label>
                             </div>
                         </div>
                     </div>
@@ -346,7 +408,10 @@
                     <div class="checkbox-grid" id="responsesGrid"></div>
                 </div>
                 
-                <button type="submit" class="generate-btn">Generate Response</button>
+                <div class="button-row">
+                    <button type="submit" class="generate-btn">Generate Response</button>
+                    <button type="button" class="clear-btn" id="clearBtn">Clear Form</button>
+                </div>
             </form>
             
             <!-- Output Section -->
@@ -673,6 +738,11 @@
             const clientType = document.querySelector('input[name="clientType"]:checked').value;
             const isPlural = clientType === 'plural';
             
+            // Party is optional
+            const partyName = document.getElementById('partyName').value.trim();
+            const partyTypeEl = document.querySelector('input[name="partyType"]:checked');
+            const isPartyPlural = partyTypeEl && partyTypeEl.value === 'plural';
+            
             // Validation
             if (!clientName) {
                 errorMessage.textContent = 'Please enter a client name.';
@@ -753,6 +823,11 @@
                 // Replace [CLIENT]
                 text = text.replace(/\[CLIENT\]/g, clientName);
                 
+                // Replace [PARTY] (only if a party name was entered)
+                if (partyName) {
+                    text = text.replace(/\[PARTY\]/g, partyName);
+                }
+                
                 // Replace [Request/Interrogatory]
                 text = text.replace(/\[Request\/Interrogatory\]/g, discoveryTypeValue);
                 
@@ -763,6 +838,9 @@
                 
                 // Adjust for plural
                 text = adjustVerbs(text, clientName, isPlural);
+                if (partyName) {
+                    text = adjustVerbs(text, partyName, isPartyPlural);
+                }
                 
                 output += text + '  ';
             });
@@ -775,11 +853,19 @@
                 // Replace [CLIENT]
                 text = text.replace(/\[CLIENT\]/g, clientName);
                 
+                // Replace [PARTY] (only if a party name was entered)
+                if (partyName) {
+                    text = text.replace(/\[PARTY\]/g, partyName);
+                }
+                
                 // Replace [Request/Interrogatory]
                 text = text.replace(/\[Request\/Interrogatory\]/g, discoveryTypeValue);
                 
                 // Adjust for plural
                 text = adjustVerbs(text, clientName, isPlural);
+                if (partyName) {
+                    text = adjustVerbs(text, partyName, isPartyPlural);
+                }
                 
                 output += text + '  ';
             });
@@ -790,6 +876,20 @@
             
             // Scroll to output
             document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        
+        // Clear Form (checkboxes only — leaves Client/Party fields and singular/plural untouched)
+        document.getElementById('clearBtn').addEventListener('click', function() {
+            // Uncheck all objection and response checkboxes, except the always-included
+            // (disabled) ones, #1 and #8
+            document.querySelectorAll('input[name="objections"], input[name="responses"]').forEach(cb => {
+                if (!cb.disabled) {
+                    cb.checked = false;
+                }
+            });
+            
+            // Hide any error message
+            document.getElementById('errorMessage').classList.remove('visible');
         });
         
         // Copy to clipboard
