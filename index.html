@@ -167,6 +167,36 @@
             line-height: 1.4;
         }
         
+        .custom-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+        
+        .custom-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .custom-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 70px;
+        }
+        
+        .custom-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
         .category-header {
             font-weight: 700;
             font-size: 15px;
@@ -341,7 +371,7 @@
         <div class="content">
             <div class="error-message" id="errorMessage"></div>
             
-            <form id="responseForm">
+            <form id="responseForm" novalidate>
                 <!-- Client Name -->
                 <div class="form-section">
                     <h2>1. Client &amp; Party Information</h2>
@@ -363,7 +393,7 @@
                     </div>
                     <div class="form-group name-row">
                         <div class="name-input">
-                            <label for="partyName">Opposing Party Name</label>
+                            <label for="partyName">Party Name</label>
                             <input type="text" id="partyName" placeholder="Enter party name (optional)">
                         </div>
                         <div class="radio-group">
@@ -528,12 +558,12 @@
   },
   {
     "Number": 21,
-    "Shorthand": "docs/info sought are already within [PARTY]'s control",
+    "Shorthand": "docs/info sought are already within party's control",
     "Full": "[CLIENT] objects to this [Request/Interrogatory] to the extent that it seeks documents or information already within [PARTY]'s care, custody, or control and the burden of [obtaining/deriving or ascertaining the answer to this Interrogatory from] such documents is substantially the same for [PARTY] as it is for [CLIENT]."
   },
   {
     "Number": 22,
-    "Shorthand": "docs/info sought are publicly available and/or equally available to [PARTY]",
+    "Shorthand": "docs/info sought are publicly available and/or equally available to Party",
     "Full": "[CLIENT] objects to this [Request/Interrogatory] because the documents or information sought are obtainable by other means, are publicly available, or otherwise equally or more available to [PARTY] or its attorneys, such that their collection and production by [CLIENT] would impose an undue and unnecessary burden on [CLIENT]."
   },
   {
@@ -611,6 +641,46 @@
   }
 ];
         
+        // Build a "custom" checkbox item with a persistent textarea.
+        // kind: 'obj' (objection) or 'resp' (response)
+        // Build a "custom" checkbox item with a persistent textarea.
+        // kind: 'obj' (objection) or 'resp' (response); uid makes each instance unique.
+        function buildCustomItem(kind, uid) {
+            const isObj = kind === 'obj';
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'checkbox-item custom-item';
+            
+            const row = document.createElement('div');
+            row.className = 'custom-row';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `custom-${kind}-${uid}`;
+            checkbox.value = 'custom';
+            checkbox.name = isObj ? 'objections' : 'responses';
+            checkbox.className = 'custom-checkbox';
+            
+            const label = document.createElement('label');
+            label.htmlFor = checkbox.id;
+            label.textContent = '[CLIENT] objects to this [Request/Interrogatory]';
+            
+            row.appendChild(checkbox);
+            row.appendChild(label);
+            
+            const textarea = document.createElement('textarea');
+            textarea.id = `custom-${kind}-text-${uid}`;
+            textarea.className = 'custom-textarea';
+            textarea.placeholder = 'Type your own';
+            
+            // Link the checkbox to its textarea so generation can find it
+            checkbox.dataset.textareaId = textarea.id;
+            
+            wrapper.appendChild(row);
+            wrapper.appendChild(textarea);
+            return wrapper;
+        }
+        
         // Populate objections
         const objectionsGrid = document.getElementById('objectionsGrid');
         
@@ -656,7 +726,7 @@
         }
         
         // Now add categorized objections
-        categories.forEach(category => {
+        categories.forEach((category, catIndex) => {
             // Add category header
             const header = document.createElement('div');
             header.className = 'category-header';
@@ -690,6 +760,9 @@
                     objectionsGrid.appendChild(div);
                 }
             });
+            
+            // Add a custom objection option at the end of this category
+            objectionsGrid.appendChild(buildCustomItem('obj', catIndex));
         });
         
         // Populate responses
@@ -725,6 +798,9 @@
             responsesGrid.appendChild(div);
         });
         
+        // Custom response option (at the end of the Responses section)
+        responsesGrid.appendChild(buildCustomItem('resp', 0));
+        
         // Form submission
         document.getElementById('responseForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -747,20 +823,24 @@
             if (!clientName) {
                 errorMessage.textContent = 'Please enter a client name.';
                 errorMessage.classList.add('visible');
+                errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
             
             if (!discoveryType) {
                 errorMessage.textContent = 'Please select a discovery type.';
                 errorMessage.classList.add('visible');
+                errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
             
+            try {
             const discoveryTypeValue = discoveryType.value;
             
             // Get selected objections (always include #1)
             const selectedObjections = [1];
             document.querySelectorAll('input[name="objections"]:checked').forEach(cb => {
+                if (cb.value === 'custom') return;
                 const num = parseInt(cb.value);
                 if (num !== 1) {
                     selectedObjections.push(num);
@@ -773,6 +853,7 @@
             // Get selected responses (always include #8)
             const selectedResponses = [];
             document.querySelectorAll('input[name="responses"]:checked').forEach(cb => {
+                if (cb.value === 'custom') return;
                 selectedResponses.push(parseInt(cb.value));
             });
             if (!selectedResponses.includes(8)) {
@@ -845,8 +926,62 @@
                 output += text + '  ';
             });
             
+            // Add custom objections (each appears at the end, in form order)
+            document.querySelectorAll('#objectionsGrid input.custom-checkbox:checked').forEach(cb => {
+                const ta = document.getElementById(cb.dataset.textareaId);
+                const customObj = ta ? ta.value.trim() : '';
+                let text = '[CLIENT] objects to this [Request/Interrogatory]';
+                if (customObj) {
+                    text += ' ' + customObj;
+                }
+                
+                // Replace [CLIENT]
+                text = text.replace(/\[CLIENT\]/g, clientName);
+                
+                // Replace [PARTY] (only if a party name was entered)
+                if (partyName) {
+                    text = text.replace(/\[PARTY\]/g, partyName);
+                }
+                
+                // Replace [Request/Interrogatory]
+                text = text.replace(/\[Request\/Interrogatory\]/g, discoveryTypeValue);
+                
+                // This always follows objection #1, so use "further objects"
+                text = text.replace(new RegExp(`(^${clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}) objects`), '$1 further objects');
+                
+                // Adjust for plural
+                text = adjustVerbs(text, clientName, isPlural);
+                if (partyName) {
+                    text = adjustVerbs(text, partyName, isPartyPlural);
+                }
+                
+                output += text + '  ';
+            });
+            
             // Add responses
             selectedResponses.forEach(num => {
+                // Insert custom responses just before the always-last reservation (#8)
+                if (num === 8) {
+                    document.querySelectorAll('#responsesGrid input.custom-checkbox:checked').forEach(cb => {
+                        const ta = document.getElementById(cb.dataset.textareaId);
+                        const customResp = ta ? ta.value.trim() : '';
+                        let ctext = '[CLIENT] objects to this [Request/Interrogatory]';
+                        if (customResp) {
+                            ctext += ' ' + customResp;
+                        }
+                        ctext = ctext.replace(/\[CLIENT\]/g, clientName);
+                        if (partyName) {
+                            ctext = ctext.replace(/\[PARTY\]/g, partyName);
+                        }
+                        ctext = ctext.replace(/\[Request\/Interrogatory\]/g, discoveryTypeValue);
+                        ctext = adjustVerbs(ctext, clientName, isPlural);
+                        if (partyName) {
+                            ctext = adjustVerbs(ctext, partyName, isPartyPlural);
+                        }
+                        output += ctext + '  ';
+                    });
+                }
+                
                 const response = responses.find(r => r.Number === num);
                 let text = response.Full;
                 
@@ -876,6 +1011,12 @@
             
             // Scroll to output
             document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (err) {
+                console.error('Generation error:', err);
+                errorMessage.textContent = 'Something went wrong generating the response: ' + err.message;
+                errorMessage.classList.add('visible');
+                errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         });
         
         // Clear Form (checkboxes only — leaves Client/Party fields and singular/plural untouched)
